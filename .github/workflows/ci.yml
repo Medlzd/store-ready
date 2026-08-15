@@ -14,5 +14,15 @@ jobs:
         run: python3 -m py_compile scripts/preflight.py scripts/bundle.py
       - name: Build single-file bundle
         run: python3 scripts/bundle.py
-      - name: Shellcheck installer
-        run: bash -n install.sh
+      - name: Check SKILL.md description length
+        run: |
+          python3 - <<'PY'
+          import sys
+          text = open("SKILL.md", encoding="utf-8").read()
+          front = text.split("---")[1]
+          desc = next(l for l in front.splitlines() if l.startswith("description:"))
+          desc = desc[len("description:"):].strip()
+          print(f"description is {len(desc)} characters")
+          if len(desc) > 200:
+              sys.exit("SKILL.md description exceeds the 200-character claude.ai limit")
+          PY

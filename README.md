@@ -46,16 +46,16 @@ and any agent that reads `AGENTS.md`.
 ### Any agent — one command
 
 ```bash
-npx skills add YOUR-GITHUB-USERNAME/store-ready
+npx skills add medlzd/store-ready
 ```
 
 Installs into the current project for the agent you're using. Inspect it first,
 target a specific agent, or install user-wide:
 
 ```bash
-npx skills add YOUR-GITHUB-USERNAME/store-ready --list      # inspect, install nothing
-npx skills add YOUR-GITHUB-USERNAME/store-ready --agent cursor
-npx skills add YOUR-GITHUB-USERNAME/store-ready --global
+npx skills add medlzd/store-ready --list      # inspect, install nothing
+npx skills add medlzd/store-ready --agent cursor
+npx skills add medlzd/store-ready --global
 ```
 
 Claude Code lands in `.claude/skills/store-ready`, Cursor and Codex in
@@ -67,7 +67,7 @@ Cursor, Codex, OpenCode and 50+ other agents through the
 ### Claude Code, without Node
 
 ```bash
-git clone https://github.com/YOUR-GITHUB-USERNAME/store-ready.git \
+git clone https://github.com/medlzd/store-ready.git \
   ~/.claude/skills/store-ready
 ```
 
@@ -83,7 +83,7 @@ Skills are uploaded as a `.zip` whose root contains exactly one `store-ready/`
 folder:
 
 ```bash
-git clone https://github.com/YOUR-GITHUB-USERNAME/store-ready.git
+git clone https://github.com/medlzd/store-ready.git
 zip -r store-ready.zip store-ready -x '*.git*' '*__pycache__*'
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: store-ready
-description: Audit and prepare a mobile app for submission to the Apple App Store, Google Play, and alternative stores (Huawei AppGallery, Samsung, Amazon, F-Droid). Use this skill whenever the user mentions publishing, shipping, submitting, releasing or uploading an app, App Store Connect, Google Play Console, TestFlight, internal/closed testing, app rejection, app review, store metadata, screenshots, privacy manifests, Data Safety, App Privacy labels, signing, AAB/IPA builds, target SDK or minimum OS requirements — even when they don't use the word "compliance". Works for Flutter, React Native, native iOS/Android, Kotlin Multiplatform, Expo, Capacitor and Unity projects.
+description: Audits a mobile app before App Store or Google Play submission. Use when the user mentions publishing or submitting an app, App Store Connect, Play Console, TestFlight, rejection, metadata, signing.
 license: MIT
 ---
 
@@ -12,6 +12,21 @@ Most rejections are not about the code. They are about missing metadata, a priva
 declaration that contradicts the actual SDKs in the binary, a permission with no
 justification, or a build that targets an OS level the store no longer accepts.
 This skill exists to catch those before submission, not after.
+
+## When this applies
+
+The frontmatter description is capped at 200 characters, so the full trigger list
+lives here. Apply this skill whenever the request touches: publishing, shipping,
+submitting, releasing or uploading an app; App Store Connect or Google Play
+Console; TestFlight or internal/closed testing tracks; an app rejection or app
+review; store metadata or screenshots; privacy manifests, Data Safety or App
+Privacy labels; signing, AAB or IPA builds; target SDK or minimum OS
+requirements — even when the user never says "compliance".
+
+It covers the Apple App Store, Google Play, and alternative stores (Huawei
+AppGallery, Samsung Galaxy Store, Amazon Appstore, F-Droid), for Flutter,
+React Native, Expo, Capacitor/Ionic, native iOS, native Android, Kotlin
+Multiplatform and Unity projects.
 
 ---
 
