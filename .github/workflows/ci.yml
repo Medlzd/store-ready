@@ -1,0 +1,18 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile scripts
+        run: python3 -m py_compile scripts/preflight.py scripts/bundle.py
+      - name: Build single-file bundle
+        run: python3 scripts/bundle.py
+      - name: Shellcheck installer
+        run: bash -n install.sh
