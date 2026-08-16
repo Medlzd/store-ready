@@ -1,8 +1,11 @@
 # Google Play — audit reference
 
-> ⏱ marks values on Google's annual cadence (new apps and updates must meet the new
-> target API level around 31 August each year; existing apps lose visibility around
-> 1 November). Fetch the current numbers before stating them.
+> ⏱ marks values on Google's annual cadence. Around **31 August**, new apps and app
+> updates must target the new API level or the upload is blocked. The later date,
+> around **1 November**, is *not* an automatic grace period — it is an extension you
+> must request through a form in Play Console, and the August date binds until you
+> do. Fetch both current dates and the required API level before stating either:
+> `https://support.google.com/googleplay/android-developer/answer/11926878`
 
 ## Contents
 1. Account prerequisites
@@ -18,10 +21,20 @@
 ## 1. Account prerequisites
 
 - Google Play Developer account, one-time registration fee, identity verified.
-- **Personal accounts created after Nov 2023** must run a closed test with a
-  minimum number of testers (≈12) opted in continuously for ≈14 days before they
-  can apply for production access. Plan this into the timeline — it is the single
-  most common surprise for solo developers. Organization accounts are exempt.
+- **Personal accounts created on or after 13 November 2023** must run a closed test
+  with **at least 12 testers, each opted in continuously for at least 14 days**,
+  before applying for production access. These are exact minimums, not estimates:
+  a tester who opts out and back in must accumulate 14 *consecutive* days to count.
+  Organization accounts are exempt. This is a calendar gate no code fix shortens —
+  put it in the timeline before anything else.
+  (`https://support.google.com/googleplay/android-developer/answer/14151465`)
+- **Play app registration / Android developer verification.** Every package must be
+  registered to a verified developer. Google auto-registered about 99% of existing
+  apps — check Play Console Home for any that were not; unregistered apps face
+  removal. ⏱ The enforcement calendar is regional and moving: certified Android
+  devices in Brazil, Indonesia, Singapore and Thailand from 30 September 2026,
+  wider rollout from 2027. Confirm the current dates for your markets.
+  (`https://developer.android.com/developer-verification`)
 - Organization accounts need a verifiable D-U-N-S number.
 - Verified contact address and phone; unverified accounts get apps blocked.
 - EU trader status declaration, same as Apple: publicly displayed contact details.
@@ -67,6 +80,7 @@ High-scrutiny permissions, each needing an in-console declaration form:
 | `FOREGROUND_SERVICE_*` | Each foreground service needs a declared type matching real use |
 | `POST_NOTIFICATIONS` | Runtime request required on Android 13+ |
 | `SCHEDULE_EXACT_ALARM` | Restricted; use inexact alarms unless it's a real alarm/calendar app |
+| `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` | Only when the Android photo picker cannot deliver core functionality, and only with an approved declaration. A custom picker does not qualify on its own. One-time or occasional access must migrate to `PickVisualMedia`. Full enforcement since 28 May 2025 — non-compliant apps are removed. If the permission arrives from a dependency's merged manifest, strip it with `tools:node="remove"` rather than declaring it |
 
 Also verify:
 - `android:exported` set explicitly on every activity, service and receiver with an
@@ -85,6 +99,18 @@ Also verify:
 - Privacy policy URL — mandatory, reachable, specific to this app.
 - **Account deletion**: if the app supports account creation, provide an in-app
   deletion path **and** a publicly reachable web URL for deletion requests.
+- **Health apps declaration** — required on the App content page for **every** app,
+  including apps with no health features at all, which must certify that none are
+  offered. It also applies to apps only on closed or open testing. An incomplete
+  form blocks submitting any change for review, which is why it surfaces as a
+  mysterious "you must complete the Health declaration" error rather than as a
+  policy rejection. Apps reading or writing Health Connect data must justify each
+  data type, and high-sensitivity types carry extra rules.
+  (`https://support.google.com/googleplay/android-developer/answer/14738291`)
+- **AI-generated content** — apps that generate content with AI need in-app
+  reporting or flagging of offensive output, without leaving the app, plus a
+  declaration in Play Console and labelling where required.
+  (`https://support.google.com/googleplay/android-developer/answer/14094294`)
 - Content rating questionnaire (IARC) — answer honestly; a mismatch discovered later
   triggers removal, not a warning.
 - Target audience and content: declaring any child audience pulls the app into

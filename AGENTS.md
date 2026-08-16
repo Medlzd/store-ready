@@ -23,7 +23,10 @@ and minimum OS requirements.
    report format. Follow it exactly.
 2. Read only the files under `references/` that the current task needs — the table
    in `SKILL.md` step 3 says which.
-3. Run `python3 scripts/preflight.py <project-path>` for the mechanical audit.
+3. Run the mechanical audit with a path relative to **this file's directory**, not
+   to the project root — the two are not the same once the skill is installed. With
+   a Skills CLI install that is
+   `python3 .agents/skills/store-ready/scripts/preflight.py <project-path>`.
    It is read-only and has no dependencies beyond the Python standard library.
 4. Produce the report in the exact structure given in `SKILL.md` step 4.
 

@@ -2,6 +2,7 @@
 name: store-ready
 description: Audits a mobile app before App Store or Google Play submission. Use when the user mentions publishing or submitting an app, App Store Connect, Play Console, TestFlight, rejection, metadata, signing.
 license: MIT
+allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/preflight.py:*)
 ---
 
 # Store Ready
@@ -42,7 +43,8 @@ source if you have web access:
 
 - Apple: `https://developer.apple.com/app-store/review/guidelines/`
 - Apple submission requirements: `https://developer.apple.com/news/upcoming-requirements/`
-- Google Play policy center: `https://support.google.com/googleplay/android-developer/answer/9859455`
+- Google Play Developer Policy Center: `https://play.google/developer-content-policy/`
+- Google Play policy deadlines: `https://support.google.com/googleplay/android-developer/table/12921780`
 - Google Play target API level: `https://support.google.com/googleplay/android-developer/answer/11926878`
 
 If you have no web access, say so explicitly and mark those numbers as
@@ -52,6 +54,16 @@ number costs the user a rejected build and a week of review time.
 ---
 
 ## Workflow
+
+### Step 0 — If the user pasted a rejection, start here
+
+When the request opens with a rejection notice, a Resolution Center message, or a
+cited guideline number, do **not** run the readiness interview. Read
+`references/rejections.md` first, quote the cited clause verbatim, map it to the
+exact file or console screen, and return two things: the fix, and a drafted
+Resolution Center or Play appeal message. Then run Step 2 to catch whatever else
+would fail the next submission. The report format in Step 4 is for readiness
+audits — a rejection answer leads with the answer.
 
 ### Step 1 — Identify the project
 
@@ -73,14 +85,23 @@ Then ask the user only what you cannot detect:
 2. First submission or an update to a live app?
 3. Does the app have accounts, payments, ads, user-generated content, or health data?
 4. Which countries/regions? (EU changes the requirements meaningfully)
+5. Does it send user content to a third-party AI model, or generate content with AI?
+6. Google Play only: is the developer account personal or organization, and is there
+   a launch deadline? Neither is derivable from the repository, and a personal
+   account faces a closed-testing gate measured in weeks.
 
 Do not ask questions whose answers are already in the repository. Read first, ask second.
 
 ### Step 2 — Run the automated pre-flight
 
 ```bash
-python3 scripts/preflight.py /path/to/project
+python3 ${CLAUDE_SKILL_DIR}/scripts/preflight.py /absolute/path/to/project
 ```
+
+The skill runs with the working directory set to the **user's project**, not to
+this skill, so a bare `scripts/preflight.py` does not resolve. Claude Code
+substitutes `${CLAUDE_SKILL_DIR}`; on a host that does not, use the absolute path
+of the directory this SKILL.md was loaded from.
 
 It parses the manifests and config files and reports what it can determine
 mechanically: bundle/application ID, versions, target and min SDK, declared
@@ -90,6 +111,19 @@ signing configuration, and obvious blockers.
 It prints findings as `BLOCKER`, `WARN`, or `INFO`. It never modifies the project.
 Treat its output as evidence to interpret, not as a verdict — it cannot see
 metadata that lives in App Store Connect or Play Console.
+
+Exit codes are part of the contract, not errors:
+
+- `0` — no blockers.
+- `1` — at least one blocker. This is the expected result on the job this skill
+  exists for. Do not re-run the script or apologise for a tooling failure; read the
+  findings and carry them into the report.
+- `2` — the path is missing or is not a recognisable mobile project. The app root
+  is probably a subdirectory: run
+  `find <path> -maxdepth 4 \( -name pubspec.yaml -o -name settings.gradle -o -name '*.xcodeproj' \)`
+  and re-run against what it finds.
+
+Add `--json` for machine-readable output.
 
 ### Step 3 — Read the relevant reference file(s)
 

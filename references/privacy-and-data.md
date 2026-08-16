@@ -11,7 +11,10 @@ Do not ask the developer what the app collects. Derive it:
 1. List every dependency (`pubspec.yaml`, `package.json`, `Podfile.lock`,
    `build.gradle`, `Package.resolved`).
 2. For each, classify: analytics, crash reporting, ads, attribution, push,
-   auth, payments, maps, chat/support, A/B testing.
+   auth, payments, maps, chat/support, A/B testing, **third-party AI or LLM
+   backend**. An LLM SDK matches none of the older categories, so it is the one
+   most often dropped from the inventory — and it is the one sending user content
+   off-device.
 3. Every item in those categories collects something — usually device identifiers,
    coarse location, and usage events at minimum.
 4. Add what your own backend stores.
@@ -29,6 +32,7 @@ SDKs, embedded webviews loading third-party trackers, and any "free" map or font
 | Distinguishes | Linked to user / Not linked / Used to track | Collected vs Shared, ephemeral processing |
 | Tracking consent | ATT prompt required | Ad ID policy + user consent |
 | SDK-level file | Privacy manifest + SDK signature | None, but SDK behaviour still counts |
+| Third-party AI | Disclose that personal data goes to a third-party AI and get explicit permission before sending it | User Data policy covers third-party AI; apps that *generate* content also need in-app reporting of offensive output |
 
 Rule: if a data type appears in the inventory, it must appear in **both** forms,
 in the privacy policy, and in the privacy manifest. Silence is treated as a false

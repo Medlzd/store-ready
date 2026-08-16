@@ -106,8 +106,15 @@ Also check:
   device classes before generating. Screenshots must show the real app; framing and
   captions are allowed, fabricated UI is not.
 - App Privacy answers ("nutrition labels") — filled per data type, per purpose.
-- ⏱ Age rating questionnaire — Apple revised its rating tiers; re-answer it rather
-  than assuming a previous answer still maps.
+- **Age rating questionnaire — a submission gate, not just a rating.** Apple added
+  13+, 16+ and 18+ alongside 4+ and 9+, with new required questions (in-app
+  controls, capabilities, medical or wellness topics, violent themes, social media
+  features). Every existing app had to re-answer by 31 January 2026 — **that date
+  has passed**, so an app whose App Information still carries the old answers
+  cannot submit updates in App Store Connect at all. Treat an unconfirmed
+  questionnaire as a blocker for any existing app, and note that AI assistants and
+  chatbots count toward how often sensitive content can appear.
+  (`https://developer.apple.com/news/upcoming-requirements/?id=07242025a`)
 - Content rights: declare third-party content and be ready to prove licensing.
 - In-app purchases: created, submitted **with the build**, with screenshot and review
   notes. IAPs submitted separately are a common source of "waiting for review" limbo.
