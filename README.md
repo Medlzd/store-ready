@@ -154,7 +154,7 @@ Detected:
   application_id             com.example.receipts
   ios_usage_descriptions     NSCameraUsageDescription
 
-Findings: 7 blocker(s), 3 warning(s), 3 note(s)
+Findings: 6 blocker(s), 4 warning(s), 3 note(s)
 
 [BLOCKER] <receiver> .BootReceiver declares an intent-filter but no android:exported
         where: android/app/src/main/AndroidManifest.xml:8
@@ -168,9 +168,17 @@ Findings: 7 blocker(s), 3 warning(s), 3 note(s)
         where: android/app/build.gradle
         fix:   Configure a release keystore and enable Play App Signing.
 
+[BLOCKER] Code appears to use photo library but NSPhotoLibraryUsageDescription is missing
+        where: ios/Runner/Info.plist
+        fix:   Add NSPhotoLibraryUsageDescription with a user-facing reason, or remove the API usage.
+
 [BLOCKER] NSCameraUsageDescription has a placeholder or too-short purpose string
         where: ios/Runner/Info.plist
         fix:   Explain the user benefit concretely, e.g. 'Take a photo of your receipt to attach it'.
+
+[BLOCKER] Account creation found but no account-deletion path detected
+        where: source
+        fix:   Both stores require in-app account deletion plus a public web deletion URL.
 ...
 ```
 

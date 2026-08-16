@@ -111,16 +111,54 @@ IOS_USAGE_KEYS = {
         r"|speech_to_text|expo-speech-recognition|react-native-voice")),
 }
 
+# Credentials that grant power a client should never hold. Each is a BLOCKER.
+# The PEM pattern requires an actual key body, so a source line such as
+# `.replace('-----BEGIN PRIVATE KEY-----', '')` no longer matches the delimiter
+# alone. It accepts `\n` escapes too, because service-account keys pasted into
+# JavaScript and Dart carry escaped newlines rather than real ones.
 SECRET_PATTERNS = [
-    (r"AIza[0-9A-Za-z_\-]{35}", "Google API key"),
     (r"sk_live_[0-9a-zA-Z]{16,}", "Stripe live secret key"),
     (r"AKIA[0-9A-Z]{16}", "AWS access key id"),
-    (r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----", "Private key"),
+    (r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----(?:\\n|[\r\n])+[A-Za-z0-9+/=\s\\]{100,}", "Private key"),
     (r"(?i)(api[_-]?key|secret|password|token)\s*[:=]\s*[\"'][^\"'\s]{16,}[\"']", "Hard-coded credential"),
 ]
 
+# Client-side Google API keys (Firebase, Maps) ship inside every APK and IPA by
+# design — Google documents them as non-secret. They cannot be moved server-side
+# because the SDK needs them to initialise, so reporting them as a leaked
+# credential asks the user to do something impossible. They are still worth a
+# warning, because an *unrestricted* key is a billing and abuse problem.
+GOOGLE_API_KEY_PATTERN = r"AIza[0-9A-Za-z_\-]{35}"
+
+# A matched "credential" that is obviously a template value, not a real one.
+PLACEHOLDER_VALUE = re.compile(r"(?i)your[_-]?|xxx+|change[_-]?me|placeholder|todo|<[^>]{1,40}>|\.\.\.")
+
+# The generic credential pattern only requires 16+ non-space characters after a
+# name like `password` or `token`, so asset paths, routes and URLs match it —
+# `imagePassword = 'assets/images/password.svg'` is not a leaked secret.
+NON_CREDENTIAL_VALUE = re.compile(
+    r"(?i)^(?:https?://|/|\.{1,2}/|assets?/|images?/|packages/|lib/|api/)"
+    r"|\.(?:svg|png|jpe?g|webp|gif|json|dart|ya?ml|ttf|otf|mp[34]|html)$"
+    r"|/$"  # a trailing slash means a route fragment, e.g. 'forgot-password/'
+)
+
 SCAN_EXTENSIONS = {".dart", ".kt", ".java", ".swift", ".m", ".mm", ".js", ".jsx", ".ts", ".tsx"}
 SKIP_DIRS = {"build", ".git", "node_modules", "Pods", ".dart_tool", "vendor", ".gradle", "DerivedData"}
+
+# Xcode target directories that are not the shipped application.
+NON_APP_TARGET = re.compile(r"(?i)^.*(tests?|uitests?|extension|widget|watchkit|notificationservice|shareext|intents).*$")
+
+# Purpose strings that say nothing, whatever their length.
+PLACEHOLDER_PURPOSE = {"", "todo", "tbd", "xxx", "test", "description", "permission", "n/a", "none"}
+
+# Apple's required-reason API categories, as they appear in native source.
+REQUIRED_REASON_APIS = re.compile(
+    r"UserDefaults|NSUserDefaults|systemUptime|mach_absolute_time"
+    r"|\.modificationDate|\.creationDate|attributesOfItem"
+    r"|volumeAvailableCapacity|activeInputModes|\bstat\("
+)
+
+_SOURCE_CACHE: dict[Path, list] = {}
 
 
 class Report:
@@ -257,8 +295,16 @@ def audit_android(root: Path, rep: Report) -> None:
     rep.fact("min_sdk", minimum)
 
     if target is None:
-        rep.add(WARN, "targetSdk could not be determined", grel,
-                "Set it explicitly and check Google Play's current required level.")
+        # The stock Flutter template writes `targetSdk = flutter.targetSdkVersion`
+        # (or `targetSdkVersion flutter.targetSdkVersion`), which resolves only at
+        # build time. Warning about it flags every compliant Flutter project.
+        if re.search(r"targetSdk(Version)?\s*[= ]\s*flutter\.targetSdkVersion", g):
+            rep.add(INFO, "targetSdk is inherited from the Flutter SDK", grel,
+                    "It cannot be read statically. Run './gradlew -p android :app:properties | "
+                    "grep targetSdk' and compare the result against Play's current requirement.")
+        else:
+            rep.add(WARN, "targetSdk could not be determined", grel,
+                    "Set it explicitly and check Google Play's current required level.")
     else:
         rep.add(INFO, f"targetSdk = {target}", grel,
                 "Compare against Play's current requirement — it rises every August.")
@@ -285,8 +331,59 @@ def audit_android(root: Path, rep: Report) -> None:
 # ios
 # --------------------------------------------------------------------------- #
 
+def is_ios_app_plist(path: Path) -> bool:
+    """True unless the plist belongs to a test bundle, app extension or framework."""
+    parts = path.parts[:-1]
+    if any(p in SKIP_DIRS for p in parts):
+        return False
+    if any(p.endswith((".framework", ".xcframework", ".dSYM", ".appex")) for p in parts):
+        return False
+    if "macos" in parts:
+        return False
+    return not any(NON_APP_TARGET.search(p) for p in parts)
+
+
+def find_app_info_plist(root: Path) -> Path | None:
+    """Locate the *application* Info.plist.
+
+    The previous shortest-path heuristic tied on `ios/MyApp/Info.plist` and
+    `ios/MyAppTests/Info.plist`, so the winner was directory order — and a test
+    bundle's plist declares no purpose strings, which fabricated blockers while
+    hiding the real ones.
+    """
+    candidates = [p for p in root.glob("**/Info.plist") if is_ios_app_plist(p)]
+    if not candidates:
+        return None
+
+    def rank(path: Path):
+        try:
+            is_app = "<string>APPL</string>" in path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            is_app = False
+        return (0 if is_app else 1, len(path.parts), str(path))
+
+    return sorted(candidates, key=rank)[0]
+
+
+def purpose_string_weight(value: str) -> float:
+    """Approximate how much a purpose string actually says.
+
+    A plain codepoint count treats `写真の撮影に使用します` — a complete sentence
+    Apple accepts — as an 11-character placeholder. CJK and Hangul carry far
+    more meaning per codepoint than Latin script does.
+    """
+    weight = 0.0
+    for char in value:
+        code = ord(char)
+        if 0x3000 <= code <= 0x9FFF or 0xAC00 <= code <= 0xD7AF or 0xF900 <= code <= 0xFAFF:
+            weight += 2.5
+        else:
+            weight += 1.0
+    return weight
+
+
 def audit_ios(root: Path, rep: Report) -> None:
-    plist = find_file(root, "**/ios/Runner/Info.plist", "**/ios/**/Info.plist", "**/Info.plist")
+    plist = find_app_info_plist(root)
     if plist is None:
         return
     rel = str(plist.relative_to(root))
@@ -305,7 +402,9 @@ def audit_ios(root: Path, rep: Report) -> None:
     for key in declared:
         m = re.search(rf"<key>{key}</key>\s*<string>([^<]*)</string>", text)
         value = (m.group(1) if m else "").strip()
-        if len(value) < 15 or value.lower() in {"", "todo", "description"}:
+        looks_placeholder = (value.lower().strip(" .") in PLACEHOLDER_PURPOSE
+                             or value.lower() == key.lower())
+        if looks_placeholder or purpose_string_weight(value) < 15:
             rep.add(BLOCKER, f"{key} has a placeholder or too-short purpose string", rel,
                     "Explain the user benefit concretely, e.g. 'Take a photo of your receipt to attach it'.")
 
@@ -320,29 +419,54 @@ def audit_ios(root: Path, rep: Report) -> None:
         rep.add(WARN, f"Background modes declared: {', '.join(modes)}", rel,
                 "Each mode must map to real functionality a reviewer can observe.")
 
-    manifests = [p for p in root.glob("**/PrivacyInfo.xcprivacy") if not any(d in p.parts for d in SKIP_DIRS)]
+    manifests = [p for p in root.glob("**/PrivacyInfo.xcprivacy")
+                 if not any(d in p.parts for d in SKIP_DIRS) and "macos" not in p.parts]
     if manifests:
         rep.fact("privacy_manifest", str(manifests[0].relative_to(root)))
+        return
+
+    # Apple requires an app-level privacy manifest when your *own* native code
+    # touches a required-reason API. Bundled SDKs ship their own manifests, so an
+    # app whose only such usage lives in plugins does not need one — calling that
+    # "submission will be rejected" is simply false.
+    native = "\n".join(t for p, t in read_source_files(root) if p.suffix in {".swift", ".m", ".mm"})
+    if REQUIRED_REASON_APIS.search(native):
+        rep.add(BLOCKER, "Native code uses a required-reason API but there is no PrivacyInfo.xcprivacy", "ios/",
+                "Add a privacy manifest declaring the data types and the required-reason API codes.")
     else:
-        rep.add(BLOCKER, "No PrivacyInfo.xcprivacy privacy manifest found", "ios/",
-                "Add a privacy manifest declaring data types and required-reason API codes.")
+        rep.add(WARN, "No app-level PrivacyInfo.xcprivacy found", "ios/",
+                "Required only if your own native code uses a required-reason API (UserDefaults, "
+                "file timestamps, disk space, boot time, active keyboards) or you collect data. "
+                "Bundled SDKs ship their own. Generate Xcode's privacy report to confirm.")
 
 
-def read_sources(root: Path, limit: int = 1200) -> str:
-    chunks, count = [], 0
+def read_source_files(root: Path, limit: int = 1200) -> list[tuple[Path, str]]:
+    """Read the project's scannable sources once, then serve them from cache.
+
+    Several audits need the same corpus; re-walking the tree per audit doubled
+    the wall-clock cost and the peak memory on any large repository.
+    """
+    cached = _SOURCE_CACHE.get(root)
+    if cached is not None:
+        return cached
+    files: list[tuple[Path, str]] = []
     for path in root.rglob("*"):
-        if count >= limit:
+        if len(files) >= limit:
             break
         if path.is_dir() or path.suffix not in SCAN_EXTENSIONS:
             continue
         if any(part in SKIP_DIRS for part in path.parts):
             continue
         try:
-            chunks.append(path.read_text(encoding="utf-8", errors="ignore"))
-            count += 1
+            files.append((path, path.read_text(encoding="utf-8", errors="ignore")))
         except OSError:
             continue
-    return "\n".join(chunks)
+    _SOURCE_CACHE[root] = files
+    return files
+
+
+def read_sources(root: Path, limit: int = 1200) -> str:
+    return "\n".join(text for _, text in read_source_files(root, limit))
 
 
 # --------------------------------------------------------------------------- #
@@ -360,35 +484,66 @@ def audit_versions(root: Path, rep: Report) -> None:
                         "Fine for a first release; the build number must increase on every upload.")
 
 
+def is_false_credential(match: str) -> bool:
+    """True when a SECRET_PATTERNS match is not actually a leaked credential."""
+    if PLACEHOLDER_VALUE.search(match):
+        return True
+    quoted = re.findall(r"[\"']([^\"'\s]{8,})[\"']", match)
+    if not quoted:
+        return False
+    value = quoted[-1]
+    if re.match(GOOGLE_API_KEY_PATTERN, value):
+        return True  # a client-side Google key; reported separately as a warning
+    return bool(NON_CREDENTIAL_VALUE.search(value))
+
+
 def audit_secrets(root: Path, rep: Report) -> None:
-    hits = []
-    for path in root.rglob("*"):
-        if path.is_dir() or path.suffix not in SCAN_EXTENSIONS:
-            continue
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
-        try:
-            content = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
+    hits, google_keys = [], []
+    for path, content in read_source_files(root):
+        where = str(path.relative_to(root))
+        m = re.search(GOOGLE_API_KEY_PATTERN, content)
+        if m:
+            google_keys.append(f"{where}:{content[: m.start()].count(chr(10)) + 1}")
         for pattern, label in SECRET_PATTERNS:
-            m = re.search(pattern, content)
+            # Take the first match that survives filtering, not merely the first
+            # match: a file can hold five client-side keys and one real secret.
+            m = next((c for c in re.finditer(pattern, content)
+                      if not is_false_credential(c.group(0))), None)
             if m:
-                line = content[: m.start()].count("\n") + 1
-                hits.append((label, f"{path.relative_to(root)}:{line}"))
+                hits.append((label, f"{where}:{content[: m.start()].count(chr(10)) + 1}"))
                 break
     for label, where in hits[:20]:
         rep.add(BLOCKER, f"Possible {label} committed in source", where,
                 "Rotate the credential and move it server-side; binaries are trivially unpacked.")
+    for where in google_keys[:5]:
+        rep.add(WARN, "Client-side Google API key in source", where,
+                "Expected — the SDK needs it and it ships in the binary either way. Do not try to "
+                "move it server-side. Restrict it in Google Cloud Console (application restrictions "
+                "plus an API allowlist) and enable Firebase App Check.")
 
 
 def audit_policy_surface(root: Path, rep: Report) -> None:
     blob = read_sources(root)
-    has_auth = re.search(r"signUp|createUser|registerUser|signInWith|createUserWithEmail", blob) is not None
-    has_delete = re.search(r"deleteAccount|delete_account|deleteUser|closeAccount", blob, re.IGNORECASE) is not None
-    if has_auth and not has_delete:
+    # Creating an account triggers the deletion requirement. Signing in does not:
+    # a B2B app with admin-provisioned accounts, or one that only offers a login,
+    # is not covered by Apple 5.1.1(v).
+    creates_account = re.search(
+        r"signUp|createUser|createUserWithEmail|registerUser"
+        r"|signInWithOAuth|signInWithProvider|signInWithGoogle|signInWithApple", blob)
+    login_only = re.search(r"signInWithPassword|signInWithEmailAndPassword|signInAnonymously", blob)
+    has_delete = re.search(
+        r"(?i)(delete|remove|close|destroy|terminate)[_\- ]?(my[_\- ]?)?(account|user|profile)"
+        r"|deleteUser|account[_\- ]?deletion", blob)
+
+    if creates_account and not has_delete:
         rep.add(BLOCKER, "Account creation found but no account-deletion path detected", "source",
                 "Both stores require in-app account deletion plus a public web deletion URL.")
+    elif login_only and not has_delete:
+        rep.add(WARN, "Sign-in found, but no account-deletion path and no sign-up either", "source",
+                "If users can create an account anywhere — in the app, on your site, or through an "
+                "admin — both stores require in-app deletion. Only accounts you provision yourself "
+                "and users cannot self-create are exempt.")
+
     if re.search(r"WebView|InAppWebView|webview_flutter", blob) and len(blob) < 40000:
         rep.add(WARN, "The app looks webview-heavy", "source",
                 "Thin webview wrappers are rejected under minimum-functionality rules.")
