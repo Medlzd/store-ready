@@ -1,6 +1,6 @@
 # store-ready
 
-**Catch App Store and Google Play rejections before you submit.**
+> **Catch App Store and Google Play rejections before you submit.**
 
 `store-ready` is a portable agent skill. It reads your project's actual
 `Info.plist`, `AndroidManifest.xml`, `build.gradle` and dependency files, checks
@@ -17,126 +17,19 @@ Supports Flutter, React Native, Expo, Capacitor/Ionic, native iOS, native
 Android, Kotlin Multiplatform and Unity — with Claude, ChatGPT, Gemini, Cursor,
 and any agent that reads `AGENTS.md`.
 
----
-
-## What it checks
-
-**Read from your repository, mechanically:**
-
-- Bundle / application ID, version and build number
-- iOS purpose strings against the APIs and plugins actually used
-- Privacy manifest presence
-- Android target and minimum SDK, sensitive permissions, `android:exported`,
-  debuggable and cleartext-traffic flags
-- Release signing configuration and hard-coded keystore passwords
-- Credentials committed to source
-- Account creation with no account-deletion path
-
-**Flagged for manual verification** — these live in the consoles, not in your repo:
-
-- App Privacy labels and the Data safety form, against your real dependency list
-- Reviewer demo account and review notes
-- Screenshots, icons, description, localisation
-- Content rating, trader status, testing-track requirements
+**[Quick start](#quick-start) · [What it checks](#what-it-checks) · [Installation](#installation) · [Usage](#usage)**
 
 ---
 
-## Install
-
-### Any agent — one command
+## Quick start
 
 ```bash
 npx skills add medlzd/store-ready
 ```
 
-Installs into the current project for the agent you're using. Inspect it first,
-target a specific agent, or install user-wide:
+Then ask your agent: *"My Flutter app is ready — will it pass App Store review?"*
 
-```bash
-npx skills add medlzd/store-ready --list      # inspect, install nothing
-npx skills add medlzd/store-ready --agent cursor
-npx skills add medlzd/store-ready --global
-```
-
-Claude Code lands in `.claude/skills/store-ready`, Cursor and Codex in
-`.agents/skills/store-ready`. Both carry `references/` and `scripts/`, so the
-pre-flight script runs immediately after install. Works with Claude Code,
-Cursor, Codex, OpenCode and 50+ other agents through the
-[Skills CLI](https://github.com/vercel-labs/skills).
-
-### Claude Code, without Node
-
-```bash
-git clone https://github.com/medlzd/store-ready.git \
-  ~/.claude/skills/store-ready
-```
-
-Restart Claude Code. The skill triggers on its own as soon as you mention
-publishing, a rejection, store metadata or signing.
-
-To scope it to one project, clone into `.claude/skills/store-ready` inside that
-project instead.
-
-### Claude Desktop / claude.ai
-
-Skills are uploaded as a `.zip` whose root contains exactly one `store-ready/`
-folder:
-
-```bash
-git clone https://github.com/medlzd/store-ready.git
-zip -r store-ready.zip store-ready -x '*.git*' '*__pycache__*'
-```
-
-Upload `store-ready.zip` under Settings → Capabilities → Skills. Enable code
-execution in the same panel if you want `preflight.py` to run.
-
-### ChatGPT custom GPTs, Gemini Gems, or any system prompt
-
-These hosts cannot read a folder. Flatten the skill into a single file:
-
-```bash
-python3 scripts/bundle.py
-```
-
-Paste `dist/store-ready-prompt.md` into your GPT's instructions or your Gem. Add
-`scripts/preflight.py` to the GPT's knowledge base if you want it to run the
-script through Code Interpreter.
-
-### No agent — just the script
-
-```bash
-python3 scripts/preflight.py /path/to/your/app
-```
-
----
-
-## Updating
-
-Skills install as a copy, so a new release here does not reach your agent until
-you refresh it:
-
-```bash
-npx skills update store-ready
-```
-
-Add `--global` for a user-wide install, `--project` for a project one.
-Re-running `npx skills add` also re-fetches the latest.
-
----
-
-## Usage
-
-Once installed, say what you actually want:
-
-- *"My Flutter app is ready — will it pass App Store review?"*
-- *"Prepare the Play Store submission, we're shipping in the EU too."*
-- *"Here's Apple's rejection message. What do I fix?"*
-- *"Generate the submission checklist for both stores."*
-
-The agent detects your stack, runs the pre-flight, reads the reference files
-that apply to your case, and produces the report.
-
-### Running the script on its own
+Or run the audit directly, with no agent involved:
 
 ```
 $ python3 scripts/preflight.py ~/dev/receipts
@@ -171,26 +64,149 @@ Findings: 6 blocker(s), 4 warning(s), 3 note(s)
 [BLOCKER] Code appears to use photo library but NSPhotoLibraryUsageDescription is missing
         where: ios/Runner/Info.plist
         fix:   Add NSPhotoLibraryUsageDescription with a user-facing reason, or remove the API usage.
-
-[BLOCKER] NSCameraUsageDescription has a placeholder or too-short purpose string
-        where: ios/Runner/Info.plist
-        fix:   Explain the user benefit concretely, e.g. 'Take a photo of your receipt to attach it'.
-
-[BLOCKER] Account creation found but no account-deletion path detected
-        where: source
-        fix:   Both stores require in-app account deletion plus a public web deletion URL.
 ...
 ```
 
-Exit codes: `0` no blockers, `1` at least one blocker, `2` not a recognisable
-mobile project. Pass `--json` for machine-readable output.
+---
 
-The script is **read-only** — it never writes to your project — and uses only
-the Python standard library.
+## What it checks
+
+**Read from your repository, mechanically:**
+
+- Bundle / application ID, version and build number
+- iOS purpose strings against the APIs and plugins actually used
+- Privacy manifest presence
+- Android target and minimum SDK, sensitive permissions, `android:exported`,
+  debuggable and cleartext-traffic flags
+- Release signing configuration and hard-coded keystore passwords
+- Credentials committed to source
+- Account creation with no account-deletion path
+
+**Flagged for manual verification** — these live in the consoles, not in your repo:
+
+- App Privacy labels and the Data safety form, against your real dependency list
+- Reviewer demo account and review notes
+- Screenshots, icons, description, localisation
+- Content rating, trader status, testing-track requirements
 
 ---
 
-## What's in here
+## Installation
+
+| Your setup | Command |
+|---|---|
+| Claude Code, Cursor, Codex, OpenCode… | `npx skills add medlzd/store-ready` |
+| Claude Code, without Node | `git clone …` into `~/.claude/skills/` |
+| Claude Desktop / claude.ai | upload a `.zip` |
+| ChatGPT GPT / Gemini Gem | `python3 scripts/bundle.py`, then paste |
+| No agent at all | `python3 scripts/preflight.py <path>` |
+
+### Skills CLI — any agent
+
+```bash
+npx skills add medlzd/store-ready
+```
+
+Installs into the current project for the agent you're using. Inspect it first,
+target a specific agent, or install user-wide:
+
+```bash
+npx skills add medlzd/store-ready --list      # inspect, install nothing
+npx skills add medlzd/store-ready --agent cursor
+npx skills add medlzd/store-ready --global
+```
+
+Claude Code lands in `.claude/skills/store-ready`, Cursor and Codex in
+`.agents/skills/store-ready`. Both carry `references/` and `scripts/`, so the
+pre-flight script runs immediately after install. Works with Claude Code,
+Cursor, Codex, OpenCode and 50+ other agents through the
+[Skills CLI](https://github.com/vercel-labs/skills).
+
+### Claude Code — no Node required
+
+```bash
+git clone https://github.com/medlzd/store-ready.git \
+  ~/.claude/skills/store-ready
+```
+
+Restart Claude Code. The skill triggers on its own as soon as you mention
+publishing, a rejection, store metadata or signing.
+
+To scope it to one project, clone into `.claude/skills/store-ready` inside that
+project instead.
+
+### Claude Desktop and claude.ai
+
+Skills are uploaded as a `.zip` whose root contains exactly one `store-ready/`
+folder:
+
+```bash
+git clone https://github.com/medlzd/store-ready.git
+zip -r store-ready.zip store-ready -x '*.git*' '*__pycache__*'
+```
+
+Upload `store-ready.zip` under Settings → Capabilities → Skills. Enable code
+execution in the same panel if you want `preflight.py` to run.
+
+### ChatGPT GPTs, Gemini Gems, any system prompt
+
+These hosts cannot read a folder. Flatten the skill into a single file:
+
+```bash
+python3 scripts/bundle.py
+```
+
+Paste `dist/store-ready-prompt.md` into your GPT's instructions or your Gem. Add
+`scripts/preflight.py` to the GPT's knowledge base if you want it to run the
+script through Code Interpreter.
+
+### Updating
+
+Skills install as a copy, so a new release here does not reach your agent until
+you refresh it:
+
+```bash
+npx skills update store-ready
+```
+
+Add `--global` for a user-wide install, `--project` for a project one.
+Re-running `npx skills add` also re-fetches the latest.
+
+---
+
+## Usage
+
+### With an agent
+
+Say what you actually want:
+
+- *"My Flutter app is ready — will it pass App Store review?"*
+- *"Prepare the Play Store submission, we're shipping in the EU too."*
+- *"Here's Apple's rejection message. What do I fix?"*
+- *"Generate the submission checklist for both stores."*
+
+The agent detects your stack, runs the pre-flight, reads the reference files
+that apply to your case, and produces the report. Paste a rejection notice and
+it answers that first, rather than starting a readiness interview.
+
+### The script on its own
+
+```bash
+python3 scripts/preflight.py /path/to/your/app [--json]
+```
+
+| Exit code | Meaning |
+|---|---|
+| `0` | No blockers |
+| `1` | At least one blocker — the expected result on a first audit, not an error |
+| `2` | Not a recognisable mobile project; the app root is probably a subdirectory |
+
+Requires Python 3.9 or newer, with no third-party packages. The script is
+**read-only** — it never writes to your project.
+
+---
+
+## Repository layout
 
 ```
 store-ready/
@@ -198,7 +214,7 @@ store-ready/
 ├── AGENTS.md                   entry point for non-Claude agents
 ├── references/
 │   ├── apple-app-store.md      accounts, build, Info.plist, privacy manifest
-│   ├── google-play.md          AAB, target SDK, permissions, Data safety
+│   ├── google-play.md          AAB, target SDK, permissions, declarations
 │   ├── privacy-and-data.md     data inventory, consent, GDPR
 │   ├── assets-and-metadata.md  icons, screenshots, copy, localisation, RTL
 │   ├── rejections.md           rejection triage and appeals
@@ -222,10 +238,6 @@ A confidently stated but outdated target SDK level costs you a rejected build
 and a week of review time. That is the whole reason for the rule.
 
 ---
-
-## Requirements
-
-Python 3.9 or newer. No third-party packages.
 
 ## Contributing
 
